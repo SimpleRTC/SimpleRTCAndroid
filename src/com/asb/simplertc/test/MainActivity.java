@@ -1,56 +1,38 @@
 package com.asb.simplertc.test;
 
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.util.ArrayList;
 
 import org.appspot.apprtc.VideoStreamsView;
-import org.webrtc.MediaConstraints;
-import org.webrtc.MediaStream;
-import org.webrtc.PeerConnection;
-import org.webrtc.PeerConnectionFactory;
-import org.webrtc.VideoCapturer;
-import org.webrtc.VideoRenderer;
-import org.webrtc.VideoRenderer.I420Frame;
-import org.webrtc.VideoSource;
-import org.webrtc.VideoTrack;
 
 import android.app.Activity;
 import android.graphics.Point;
-import android.media.AudioManager;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.Menu;
+import android.view.MenuItem;
 import android.view.WindowManager;
+import android.widget.Toast;
 
 import com.asb.simplertc.R;
+import com.asb.simplertc.SimpleRTC;
 import com.asb.simplertc.session.Session;
-import com.asb.simplertc.signaling.Channel;
+import com.asb.simplertc.session.Session.OnSessionListener;
+import com.asb.simplertc.session.User.STATUS;
+import com.asb.simplertc.session.SessionConfig;
+import com.asb.simplertc.session.User;
 
 public class MainActivity extends Activity {
 	
-	private MediaConstraints mSdpConstraints;
-	
-	PeerConnectionFactory mFactory;
-	PeerConnection mPc;
-	
 	private VideoStreamsView vsv;
-	private VideoSource mVideoSource;
-	private VideoTrack mVideoTrack;
+	private Session mSession;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		
-		setContentView(R.layout.activity_main);
-		
-		//initWebRTC();
-		//getUserMedia();
-		
-		Session session = new Session("tester2", "hongjunpyo", null);
-		session.connect();
+		initLayout();
 	}
 	
-	private void initWebRTC() {
+	private void initLayout() {
 		getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
 		getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 		
@@ -59,81 +41,6 @@ public class MainActivity extends Activity {
 		vsv = new VideoStreamsView(this, displaySize);
 		
 		setContentView(vsv);
-		
-		Log.e("jphong", "Android global initialized:"+PeerConnectionFactory.initializeAndroidGlobals(this, true, true));
-		
-		Log.e("jphong", "PeerConnectionFactory is creating...");
-		mFactory = new PeerConnectionFactory();
-		Log.e("jphong", "PeerConnectionFactory was created!");
-		
-		mSdpConstraints = new MediaConstraints();
-		//mSdpConstraints.mandatory.add(new MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"));
-		
-		AudioManager audioManager = ((AudioManager) getSystemService(AUDIO_SERVICE));
-		// TODO(fischman): figure out how to do this Right(tm) and remove the
-		// suppression.
-		@SuppressWarnings("deprecation")
-		boolean isWiredHeadsetOn = audioManager.isWiredHeadsetOn();
-		audioManager.setMode(isWiredHeadsetOn ? AudioManager.MODE_IN_CALL : AudioManager.MODE_IN_COMMUNICATION);
-		audioManager.setSpeakerphoneOn(!isWiredHeadsetOn);
-	}
-	
-	private void getUserMedia() {
-		MediaStream lMS = mFactory.createLocalMediaStream("ARDAMS");
-		
-		//get VideoCapturer
-		VideoCapturer capturer = getVideoCapturer();
-		mVideoSource = mFactory.createVideoSource(capturer, mSdpConstraints);
-		mVideoTrack = mFactory.createVideoTrack("ARDAMSv0", mVideoSource);
-		mVideoTrack.addRenderer(new VideoRenderer(new VideoCallbacks(vsv, VideoStreamsView.Endpoint.LOCAL)));
-		lMS.addTrack(mVideoTrack);
-		
-		lMS.addTrack(mFactory.createAudioTrack("ARDAMSa0", mFactory.createAudioSource(mSdpConstraints)));
-	}
-	
-	private VideoCapturer getVideoCapturer() {
-		String[] cameraFacing = { "front", "back" };
-		int[] cameraIndex = { 0, 1 };
-		int[] cameraOrientation = { 0, 90, 180, 270 };
-		for (String facing : cameraFacing) {
-			for (int index : cameraIndex) {
-				for (int orientation : cameraOrientation) {
-					String name = "Camera " + index + ", Facing " + facing + ", Orientation " + orientation;
-					VideoCapturer capturer = VideoCapturer.create(name);
-					if (capturer != null) {
-						return capturer;
-					}
-				}
-			}
-		}
-		throw new RuntimeException("Failed to open capturer");
-	}
-	
-	// Implementation detail: bridge the VideoRenderer.Callbacks interface to
-	// the
-	// VideoStreamsView implementation.
-	private class VideoCallbacks implements VideoRenderer.Callbacks {
-		private final VideoStreamsView view;
-		private final VideoStreamsView.Endpoint stream;
-
-		public VideoCallbacks(VideoStreamsView view, VideoStreamsView.Endpoint stream) {
-			this.view = view;
-			this.stream = stream;
-		}
-
-		@Override
-		public void setSize(final int width, final int height) {
-			view.queueEvent(new Runnable() {
-				public void run() {
-					view.setSize(stream, width, height);
-				}
-			});
-		}
-
-		@Override
-		public void renderFrame(I420Frame frame) {
-			view.queueFrame(stream, frame);
-		}
 	}
 
 	@Override
@@ -142,5 +49,77 @@ public class MainActivity extends Activity {
 		getMenuInflater().inflate(R.menu.main, menu);
 		return true;
 	}
-
+	
+	@Override
+	public boolean onMenuItemSelected(int featureId, MenuItem item) {
+		
+		switch(item.getItemId()) {
+		case R.id.action_connect:
+			StartSimpleRtc();
+			break;
+		case R.id.action_about:
+			showToast("SimpleRTC for Android TEST");
+			break;
+		}
+		
+		return true;
+	}
+	
+	private void StartSimpleRtc() {
+		SessionConfig sessionConfig = new SessionConfig();
+		sessionConfig.configs.put(SessionConfig.CONFIG_VIDEOVIEW, vsv);
+		
+		mSession = SimpleRTC.createSession("Android", "VZueniAypc", sessionConfig);
+		mSession.setListener(new OnSessionListener() {
+			
+			@Override
+			public void onRefreshed(ArrayList<User> remoteUserList) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void onMessaged() {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void onError() {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void onConnected(String sessionId) {
+				showToast("Session connected... sessionId:"+sessionId);
+				
+				mSession.changeStatus(STATUS.STABLE);
+			}
+			
+			@Override
+			public void onCallRequested(User remoteUser) {
+				showToast("User name:"+remoteUser.mName+" request calling...");
+				
+				//TODO TEST
+				mSession.acceptCall();
+			}
+			
+			@Override
+			public void onCallDisconnected() {
+				showToast("WebRTC call disconnected...");
+			}
+			
+			@Override
+			public void onCallConnected() {
+				showToast("WebRTC call connected...");
+			}
+		});
+		
+		mSession.connect();
+	}
+	
+	public void showToast(String message) {
+		Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
+	}
 }
