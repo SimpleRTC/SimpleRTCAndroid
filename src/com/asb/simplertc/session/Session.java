@@ -7,6 +7,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import android.content.Context;
+
 import com.asb.restapi.OnJsonJobListener;
 import com.asb.simplertc.Constants.CHANNEL.SIG_ACTION;
 import com.asb.simplertc.Constants.CHANNEL.SIG_TYPE;
@@ -19,6 +21,8 @@ import com.asb.simplertc.utils.SLog;
 import com.asb.simplertc.webrtc.WebRTC;
 
 public class Session {
+	
+	private Context mContext;
 	
 	private User mLocalUser;
 	private User mRemoteUser;
@@ -47,7 +51,9 @@ public class Session {
 		public abstract void onRefreshed(ArrayList<User> remoteUserList);
 	}
 	
-	public Session(String name, String instanceId, SessionConfig sessionConfig) {
+	public Session(Context context, String name, String instanceId, SessionConfig sessionConfig) {
+		mContext = context;
+		
 		mLocalUser = new User(name, instanceId, sessionConfig);
 		mRemoteUsers = new ArrayList<User>();
 		
@@ -76,6 +82,7 @@ public class Session {
 					mLocalUser.mSessionId = response.getString("sessionId");
 					
 					mWebRtc = new WebRTC(
+							mContext,
 							mLocalUser.bIsCaller?ROLE.CALLER:ROLE.CALLEE, 
 							mLocalUser, 
 							mWebRtcStepListener, 
@@ -106,7 +113,7 @@ public class Session {
 						}
 					}, messageListener);
 					
-					triggerCallback(CALLBACK.CONNECTED);
+					triggerCallback(CALLBACK.CONNECTED, mLocalUser.mSessionId);
 					
 				} catch (JSONException e) {
 					// TODO Auto-generated catch block
@@ -157,6 +164,8 @@ public class Session {
 	}
 	
 	public void changeStatus(User.STATUS status) {
+		mLocalUser.mStatus = status;
+		
 		mSessionManager.changeSessionStatus(new OnJsonJobListener() {
 			
 			@Override
@@ -208,8 +217,11 @@ public class Session {
 				if(msgAction.equals("SEND") && msgType.equals("SIG")) {
 					int fullSignal = Integer.parseInt(msgMessage);
 					
-					SIG_ACTION sigAction = SIG_ACTION.fromValue(fullSignal/1000000);
-					SIG_TYPE sigType = SIG_TYPE.fromValue((fullSignal - (fullSignal/1000000))/1000);
+					int sigActionNum = generateSignal(fullSignal, 0);
+					int sigTypeNum = generateSignal(fullSignal, 1);
+					
+					SIG_ACTION sigAction = SIG_ACTION.fromValue(sigActionNum);
+					SIG_TYPE sigType = SIG_TYPE.fromValue(sigTypeNum);
 					
 					if(sigAction == SIG_ACTION.CALL && sigType == SIG_TYPE.REQUESTCALL) 
 						mLocalUser.bIsCaller = false;
@@ -238,7 +250,7 @@ public class Session {
 							mWebRtc.startWebRtc();
 						}
 						else {
-							mWebRtc.initWebRtc(true, true, mLocalUser);
+							mWebRtc.initWebRtc(true, true, mRemoteUser);
 						}
 						break;
 					}
@@ -250,6 +262,17 @@ public class Session {
 			}
 		}
 		
+	}
+	
+	public int generateSignal(int fullSignal, int type) {
+		if(type == 0) {
+			return fullSignal/1000000;
+		}
+		else if(type == 1) {
+			return (fullSignal - ((fullSignal/1000000) * 1000000))/1000;
+		}
+		
+		return -1;
 	}
 	
 	private class WebRTCStepListener implements WebRTC.OnWebRTCStepListener {
