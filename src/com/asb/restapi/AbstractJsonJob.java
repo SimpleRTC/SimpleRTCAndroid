@@ -76,7 +76,7 @@ public abstract class AbstractJsonJob implements Runnable {
 		return rawString;
 	}
 	
-	protected void setData(String name, String value) {
+	protected void setData(String name, Object value) {
 		try {
 			
 			if(mData == null)
