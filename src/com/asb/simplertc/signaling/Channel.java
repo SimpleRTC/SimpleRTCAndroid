@@ -15,6 +15,7 @@ import com.asb.simplertc.Constants;
 import com.asb.simplertc.Constants.CHANNEL.SIG_ACTION;
 import com.asb.simplertc.Constants.CHANNEL.SIG_TYPE;
 import com.asb.simplertc.session.User;
+import com.asb.simplertc.utils.SLog;
 
 public class Channel extends WebSocketClient {
 	
@@ -63,10 +64,10 @@ public class Channel extends WebSocketClient {
 	}
 	
 	public void requestCall(String receiver) {
-		sendSignal(receiver, SIG_ACTION.CALL, SIG_TYPE.REJECTCALL);
+		sendSignal(receiver, SIG_ACTION.CALL, SIG_TYPE.REQUESTCALL);
 	}
 	
-	public void receiverCall(String receiver) {
+	public void receiveCall(String receiver) {
 		sendSignal(receiver, SIG_ACTION.RETURN, SIG_TYPE.REQUESTCALL);
 	}
 	
@@ -119,7 +120,7 @@ public class Channel extends WebSocketClient {
 	}
 	
 	private void sendMessage(JSONObject jsonMessage) {
-		Log.e("jphong", "[SOCKET]C->S:"+jsonMessage.toString());
+		SLog.LOGE("[SOCKET]C->S:"+jsonMessage.toString());
 		send(jsonMessage.toString());
 	}
 	
@@ -169,6 +170,8 @@ public class Channel extends WebSocketClient {
 
 	@Override
 	public void onMessage(String message) {
+		SLog.LOGE("[SOCKET]S->C:"+message);
+		
 		if(mChannelListener != null) {
 			mMessagedListener.onMessage(message);
 		}

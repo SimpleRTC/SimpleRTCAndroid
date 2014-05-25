@@ -2,33 +2,44 @@ package com.asb.simplertc.session;
 
 import java.util.ArrayList;
 
+import org.appspot.apprtc.VideoStreamsView;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import android.util.Log;
-
 import com.asb.restapi.OnJsonJobListener;
+import com.asb.simplertc.Constants.CHANNEL.SIG_ACTION;
+import com.asb.simplertc.Constants.CHANNEL.SIG_TYPE;
+import com.asb.simplertc.Constants.WEBRTC.ROLE;
+import com.asb.simplertc.Constants.WEBRTC.STEP;
 import com.asb.simplertc.signaling.Channel;
 import com.asb.simplertc.signaling.Channel.OnChannelListener;
 import com.asb.simplertc.signaling.Channel.OnMessagedListener;
+import com.asb.simplertc.utils.SLog;
+import com.asb.simplertc.webrtc.WebRTC;
 
 public class Session {
 	
 	private User mLocalUser;
+	private User mRemoteUser;
 	private ArrayList<User> mRemoteUsers;
 	
 	private SessionManager mSessionManager;
 	
 	private Channel mChannel;
 	
+	private WebRTC mWebRtc;
+	
+	private MessageHookingListener mMessageHookingListener;
+	private WebRTCStepListener mWebRtcStepListener;
+	
 	private enum CALLBACK {
 		CONNECTED, CALL_REQUESTED, CALL_CONNECTED, CALL_DISCONNECTED, MESSAGED, ERRORED, REFRESHED
 	};
 	private OnSessionListener mSessionListener;
 	public interface OnSessionListener {
-		public abstract void onConnected();
-		public abstract void onCallRequested();
+		public abstract void onConnected(String sessionId);
+		public abstract void onCallRequested(User remoteUser);
 		public abstract void onCallConnected();
 		public abstract void onCallDisconnected();
 		public abstract void onMessaged();
@@ -41,6 +52,9 @@ public class Session {
 		mRemoteUsers = new ArrayList<User>();
 		
 		mSessionManager = new SessionManager(this.mLocalUser);
+		
+		mMessageHookingListener = new MessageHookingListener();
+		mWebRtcStepListener = new WebRTCStepListener();
 	}
 	
 	public void setListener(OnSessionListener listener) {
@@ -60,6 +74,15 @@ public class Session {
 			public void onJonFinished(JSONObject response) {
 				try {
 					mLocalUser.mSessionId = response.getString("sessionId");
+					
+					mWebRtc = new WebRTC(
+							mLocalUser.bIsCaller?ROLE.CALLER:ROLE.CALLEE, 
+							mLocalUser, 
+							mWebRtcStepListener, 
+							(VideoStreamsView)mLocalUser.mSessionConfig.configs.get(SessionConfig.CONFIG_VIDEOVIEW)
+					);
+					
+					OnMessagedListener messageListener = mWebRtc.initChannel(mMessageHookingListener);
 					
 					mChannel = Channel.getInstance(mLocalUser);
 					mChannel.initChannel(new OnChannelListener() {
@@ -81,16 +104,10 @@ public class Session {
 							// TODO Auto-generated method stub
 							
 						}
-					}, new OnMessagedListener() {
-						
-						@Override
-						public void onMessage(String message) {
-							// TODO Auto-generated method stub
-							
-						}
-					});
+					}, messageListener);
 					
-					triggerCallback(CALLBACK.CONNECTED, new Object[1]);
+					triggerCallback(CALLBACK.CONNECTED);
+					
 				} catch (JSONException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -128,7 +145,7 @@ public class Session {
 					e.printStackTrace();
 				}
 				
-				triggerCallback(CALLBACK.REFRESHED);
+				triggerCallback(CALLBACK.REFRESHED, mLocalUser.mSessionId);
 			}
 			
 			@Override
@@ -154,12 +171,15 @@ public class Session {
 		});
 	}
 	
-	public void call(User user) {
+	public void call(User remoteUser) {
+		mRemoteUser = remoteUser;
+		mLocalUser.bIsCaller = true;
 		
+		mChannel.requestCall(mRemoteUser.mSessionId);
 	}
 	
 	public void acceptCall() {
-		
+		mChannel.receiveCall(mRemoteUser.mSessionId);
 	}
 	
 	public void rejectCall() {
@@ -167,6 +187,103 @@ public class Session {
 	}
 	
 	public void hangUp() {
+		mWebRtc.stopWebRtc(true, mRemoteUser);
+		
+		mChannel.finishCall(mRemoteUser.mSessionId);
+	}
+	
+	private class MessageHookingListener implements WebRTC.OnMessageHookingListener {
+
+		@Override
+		public void onMessaged(String message) {
+			try {
+				JSONObject jsonMessage = new JSONObject(message);
+				
+				String mSender = jsonMessage.getString("SENDER");
+				String mReceiver = jsonMessage.getString("RECEIVER");
+				String msgAction = jsonMessage.getString("ACTION");
+				String msgType = jsonMessage.getString("TYPE");
+				String msgMessage = jsonMessage.getString("MESSAGE");
+				
+				if(msgAction.equals("SEND") && msgType.equals("SIG")) {
+					int fullSignal = Integer.parseInt(msgMessage);
+					
+					SIG_ACTION sigAction = SIG_ACTION.fromValue(fullSignal/1000000);
+					SIG_TYPE sigType = SIG_TYPE.fromValue((fullSignal - (fullSignal/1000000))/1000);
+					
+					if(sigAction == SIG_ACTION.CALL && sigType == SIG_TYPE.REQUESTCALL) 
+						mLocalUser.bIsCaller = false;
+					
+					switch(sigType) {
+					case REQUESTCALL:
+						if(mLocalUser.bIsCaller) {
+							SLog.LOGE("Callee accept call request");
+							
+							mWebRtc.initWebRtc(true, true, mRemoteUser);
+						}
+						else {
+							SLog.LOGE("Caller send call request");
+							
+							mRemoteUser = new User("", "", new SessionConfig());
+							mRemoteUser.mSessionId = mSender;
+							
+							triggerCallback(CALLBACK.CALL_REQUESTED, mRemoteUser);
+						}
+						break;
+					case CONNECT:
+						triggerCallback(CALLBACK.CALL_CONNECTED);
+						break;
+					case GUM:
+						if(mLocalUser.bIsCaller) {
+							mWebRtc.startWebRtc();
+						}
+						else {
+							mWebRtc.initWebRtc(true, true, mLocalUser);
+						}
+						break;
+					}
+				}
+				
+			} catch (JSONException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+	}
+	
+	private class WebRTCStepListener implements WebRTC.OnWebRTCStepListener {
+
+		@Override
+		public void onStepChanged(STEP step) {
+			SLog.LOGE("WebRTC Status : " + step.name());
+			
+			switch(step) {
+			case INIT:
+				SLog.LOGE("WebRTC initializing...");
+				break;
+			case SIGNALING:
+				SLog.LOGE("WebRTC signaling...");
+				break;
+			case CONNECTED:
+				triggerCallback(CALLBACK.CALL_CONNECTED);
+				break;
+			case DISCONNECTED:
+				triggerCallback(CALLBACK.CALL_DISCONNECTED);
+				break;
+			case GUM_SUCCESS:
+				if(mLocalUser.bIsCaller) {
+					mChannel.requestGUM(mRemoteUser.mSessionId);
+				}
+				else {
+					mWebRtc.startWebRtc();
+					mChannel.completedGUM(mRemoteUser.mSessionId);
+				}
+				break;
+			case GUM_FAILED:
+				break;
+			}
+		}
 		
 	}
 	
@@ -180,24 +297,28 @@ public class Session {
 		
 		switch(type) {
 		case CONNECTED:
-			mSessionListener.onConnected();
+			mSessionListener.onConnected((String)objects[0]);
 			break;
 		case CALL_REQUESTED:
+			mSessionListener.onCallRequested((User)objects[0]);
 			break;
 		case CALL_CONNECTED:
+			mSessionListener.onCallConnected();
 			break;
 		case CALL_DISCONNECTED:
+			mSessionListener.onCallDisconnected();
 			break;
 		case MESSAGED:
+			mSessionListener.onMessaged();
 			break;
 		case ERRORED:
+			mSessionListener.onMessaged();
 			break;
 		case REFRESHED:
 			mSessionListener.onRefreshed(mRemoteUsers);
 			break;
 		default:
-			break;
+			return;
 		}
 	}
-
 }

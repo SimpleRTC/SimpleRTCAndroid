@@ -21,6 +21,23 @@ public class Constants {
 			public int value() {
 				return this.value;
 			}
+			
+			public static SIG_ACTION fromValue(int value) {
+				switch(value) {
+				case 10:
+					return SIG_ACTION.valueOf("DONE");
+				case 11:
+					return SIG_ACTION.valueOf("CALL");
+				case 12:
+					return SIG_ACTION.valueOf("RETURN");
+				case 13:
+					return SIG_ACTION.valueOf("RCALL");
+				case 14:
+					return SIG_ACTION.valueOf("ACK");
+				default:
+					return SIG_ACTION.valueOf("ACK");
+				}
+			}
 		};
 		
 		public static enum SIG_TYPE {
@@ -42,6 +59,31 @@ public class Constants {
 			
 			public int value() {
 				return this.value;
+			}
+			
+			public static SIG_TYPE fromValue(int value) {
+				switch(value) {
+				case 100:
+					return SIG_TYPE.valueOf("NONE");
+				case 101:
+					return SIG_TYPE.valueOf("GUM");
+				case 102:
+					return SIG_TYPE.valueOf("REQUESTCALL");
+				case 103:
+					return SIG_TYPE.valueOf("CONNECT");
+				case 104:
+					return SIG_TYPE.valueOf("DISCONNECT");
+				case 105:
+					return SIG_TYPE.valueOf("CLASSSTART");
+				case 106:
+					return SIG_TYPE.valueOf("CLASSEND");
+				case 107:
+					return SIG_TYPE.valueOf("FINISHCALL");
+				case 108:
+					return SIG_TYPE.valueOf("REJECTCALL");
+				default:
+					return SIG_TYPE.valueOf("NONE");
+				}
 			}
 		};
 	}

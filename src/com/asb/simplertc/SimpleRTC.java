@@ -5,10 +5,7 @@ import com.asb.simplertc.session.SessionConfig;
 
 public class SimpleRTC {
 	
-	private Session mSession;
-	
-	public static void createSession(String name, String instanceId, SessionConfig sessionConfig) {
-		
+	public static Session createSession(String name, String instanceId, SessionConfig sessionConfig) {
+		return new Session(name, instanceId, sessionConfig);
 	}
-	
 }

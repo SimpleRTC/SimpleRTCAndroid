@@ -39,12 +39,14 @@ public class User {
 	public String mInstanceId;
 	public String mSessionId;
 	public SessionConfig mSessionConfig;
+	public boolean bIsCaller;
 	public STATUS mStatus;
 	
 	public User(String name, String instanceId, SessionConfig sessionConfig) {
 		mName = name;
 		mInstanceId = instanceId;
 		mSessionConfig = sessionConfig;
+		bIsCaller = false;
 	}
 	
 	public boolean isCallable() {
