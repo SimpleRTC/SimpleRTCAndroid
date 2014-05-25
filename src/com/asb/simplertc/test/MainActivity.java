@@ -10,15 +10,15 @@ import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.WindowManager;
-import android.widget.Toast;
 
 import com.asb.simplertc.R;
 import com.asb.simplertc.SimpleRTC;
 import com.asb.simplertc.session.Session;
 import com.asb.simplertc.session.Session.OnSessionListener;
-import com.asb.simplertc.session.User.STATUS;
 import com.asb.simplertc.session.SessionConfig;
 import com.asb.simplertc.session.User;
+import com.asb.simplertc.session.User.STATUS;
+import com.asb.simplertc.utils.SLog;
 
 public class MainActivity extends Activity {
 	
@@ -69,7 +69,7 @@ public class MainActivity extends Activity {
 		SessionConfig sessionConfig = new SessionConfig();
 		sessionConfig.configs.put(SessionConfig.CONFIG_VIDEOVIEW, vsv);
 		
-		mSession = SimpleRTC.createSession("Android", "VZueniAypc", sessionConfig);
+		mSession = SimpleRTC.createSession(getApplicationContext(), "Android", "VZueniAypc", sessionConfig);
 		mSession.setListener(new OnSessionListener() {
 			
 			@Override
@@ -120,6 +120,7 @@ public class MainActivity extends Activity {
 	}
 	
 	public void showToast(String message) {
-		Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
+		//Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
+		SLog.LOGE(message);
 	}
 }
