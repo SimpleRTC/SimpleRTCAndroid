@@ -25,6 +25,7 @@ import org.webrtc.VideoSource;
 import org.webrtc.VideoTrack;
 
 import android.content.Context;
+import android.media.AudioManager;
 
 import com.asb.simplertc.Constants.WEBRTC.ROLE;
 import com.asb.simplertc.Constants.WEBRTC.STEP;
@@ -64,7 +65,9 @@ public class WebRTC {
 	private OnPeerConnectionListener mPeerConnectionListener;
 	private OnSdpListener mOnSdpListener;
 	
-	public WebRTC(ROLE role, User localUser, OnWebRTCStepListener stepListener, VideoStreamsView videoView) {
+	public WebRTC(Context context, ROLE role, User localUser, OnWebRTCStepListener stepListener, VideoStreamsView videoView) {
+		mContext = context;
+		
 		mUserRole = role;
 		mLocalUser = localUser;
 		mRtcStepListener = stepListener;
@@ -97,9 +100,17 @@ public class WebRTC {
 		mPcConstraints = new MediaConstraints();
 		mPcConstraints.optional.add(new KeyValuePair("DtlsSrtpKeyAgreement", "true"));
 		
-		mPcFatory = new PeerConnectionFactory();
+		AudioManager audioManager = ((AudioManager) mContext.getSystemService(mContext.AUDIO_SERVICE));
+		// TODO(fischman): figure out how to do this Right(tm) and remove the
+		// suppression.
+		@SuppressWarnings("deprecation")
+		boolean isWiredHeadsetOn = audioManager.isWiredHeadsetOn();
+		audioManager.setMode(isWiredHeadsetOn ? AudioManager.MODE_IN_CALL : AudioManager.MODE_IN_COMMUNICATION);
+		audioManager.setSpeakerphoneOn(!isWiredHeadsetOn);
 		
-		SLog.LOGE("Android global initialized:"+PeerConnectionFactory.initializeAndroidGlobals(this, true, true));
+		SLog.LOGE("Android global initialized:"+PeerConnectionFactory.initializeAndroidGlobals(mContext, true, true));
+		
+		mPcFatory = new PeerConnectionFactory();
 		
 		if(getUserMedia()) {
 			changeWebRtcStep(STEP.GUM_SUCCESS);
@@ -110,11 +121,11 @@ public class WebRTC {
 	}
 	
 	public void startWebRtc() {
-		ArrayList<PeerConnection.IceServer> iceServers = new ArrayList<PeerConnection.IceServer>();
-		iceServers.add(new IceServer("turn:1.237.187.34:3478", "test", "1234"));
-		
 		//Create Peerconnection
 		mPeerConnectionListener = new OnPeerConnectionListener();
+		
+		ArrayList<PeerConnection.IceServer> iceServers = new ArrayList<PeerConnection.IceServer>();
+		iceServers.add(new IceServer("turn:1.237.187.34:3478", "test", "1234"));
 		mPc = mPcFatory.createPeerConnection(iceServers, mPcConstraints, mPeerConnectionListener);
 		
 		//Add localStream to PeerConnection
@@ -168,15 +179,26 @@ public class WebRTC {
 		boolean gumResult = true;
 		
 		mLocalStream = mPcFatory.createLocalMediaStream("ARDAMS");
+		SLog.LOGE(""+0);
 		
 		//get VideoCapturer
 		VideoCapturer capturer = getVideoCapturer();
-		VideoSource videoSource = mPcFatory.createVideoSource(capturer, mSdpConstraints);
-		VideoTrack videoTrack = mPcFatory.createVideoTrack("ARDAMSv0", videoSource);
-		videoTrack.addRenderer(new VideoRenderer(new VideoCallbacks(mVideoView, VideoStreamsView.Endpoint.LOCAL)));
-		gumResult &= mLocalStream.addTrack(videoTrack);
+		SLog.LOGE(""+1);
 		
-		gumResult &= mLocalStream.addTrack(mPcFatory.createAudioTrack("ARDAMSa0", mPcFatory.createAudioSource(mSdpConstraints)));
+		VideoSource videoSource = mPcFatory.createVideoSource(capturer, new MediaConstraints());
+		SLog.LOGE(""+2);
+		
+		VideoTrack videoTrack = mPcFatory.createVideoTrack("ARDAMSv0", videoSource);
+		SLog.LOGE(""+3);
+		
+		videoTrack.addRenderer(new VideoRenderer(new VideoCallbacks(mVideoView, VideoStreamsView.Endpoint.LOCAL)));
+		SLog.LOGE(""+4);
+		
+		gumResult &= mLocalStream.addTrack(videoTrack);
+		SLog.LOGE("Add video track success");
+		
+		gumResult &= mLocalStream.addTrack(mPcFatory.createAudioTrack("ARDAMSa0", mPcFatory.createAudioSource(new MediaConstraints())));
+		SLog.LOGE("Add audio track success");
 		
 		return gumResult;
 	}
