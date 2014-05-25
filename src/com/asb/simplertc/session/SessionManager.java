@@ -117,7 +117,8 @@ public class SessionManager {
 			super(RestAPI.SERVER_DOMAIN + "/API/session/change/status");
 			Log.e("jphong", mJsonUrl);
 			
-			setData("instanceid", mLocalUser.mInstanceId);
+			setData("sessionid", mLocalUser.mSessionId);
+			setData("status", mLocalUser.mStatus.value());
 		}
 
 		@Override
