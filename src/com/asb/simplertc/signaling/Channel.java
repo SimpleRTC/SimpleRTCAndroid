@@ -125,7 +125,7 @@ public class Channel extends WebSocketClient {
 	}
 	
 	private void sendSignal(String receiver, SIG_ACTION action, SIG_TYPE type) {
-		sendSignal(receiver, action, null);
+		sendSignal(receiver, action, type, null);
 	}
 	
 	private void sendSignal(String receiver, SIG_ACTION action, SIG_TYPE type, SIG_TYPE pre) {
